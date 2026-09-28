@@ -1,5 +1,6 @@
 #include "HttpClient.h"
 #include <iostream>
+#include <limits>
 
 #pragma comment(lib,"winhttp.lib")
 
@@ -12,6 +13,11 @@ HttpClient::HttpClient()
         WINHTTP_NO_PROXY_BYPASS,
         0
     );
+
+    addHeader(
+        L"Content-Type",
+        L"application/json"
+    );
 }
 
 HttpClient::~HttpClient() 
@@ -22,7 +28,7 @@ HttpClient::~HttpClient()
     }
 }
 
-std::string HttpClient::get(
+HttpResponse HttpClient::get(
     const std::wstring& url
 ) 
 {
@@ -33,7 +39,15 @@ std::string HttpClient::get(
     );
 }
 
-std::string HttpClient::post(
+void HttpClient::addHeader(
+    const std::wstring& key,
+    const std::wstring& value
+)
+{
+    headers[key] = value;
+}
+
+HttpResponse HttpClient::post(
     const std::wstring& url,
     const std::string& body
 )
@@ -43,6 +57,31 @@ std::string HttpClient::post(
         url,
         body
     );
+}
+
+HttpResponse HttpClient::postJson(
+    const std::wstring& url,
+    const json& data
+)
+{
+    return post(
+        url,
+        data.dump()
+    );
+}
+
+std::wstring HttpClient::buildHeaders()
+{
+    std::wstring result;
+    for (auto& header : headers)
+    {
+        result += header.first;
+        result += L": ";
+        result += header.second;
+        result += L"\r\n";
+    }
+
+    return result;
 }
 
 bool HttpClient::parseUrl(
@@ -57,12 +96,15 @@ bool HttpClient::parseUrl(
 
     wchar_t hostBuffer[256];
     wchar_t pathBuffer[2048];
+    wchar_t extraInfoBuffer[2048];
 
     components.dwStructSize = sizeof(components);
     components.lpszHostName = hostBuffer;
     components.dwHostNameLength = sizeof(hostBuffer) / sizeof(wchar_t);
     components.lpszUrlPath = pathBuffer;
     components.dwUrlPathLength = sizeof(pathBuffer) / sizeof(wchar_t);
+    components.lpszExtraInfo = extraInfoBuffer;
+    components.dwExtraInfoLength = sizeof(extraInfoBuffer) / sizeof(wchar_t);
 
     if (!WinHttpCrackUrl(url.c_str(), 
         0, 
@@ -81,6 +123,7 @@ bool HttpClient::parseUrl(
         components.lpszUrlPath,
         components.dwUrlPathLength
     );
+    path.append(components.lpszExtraInfo, components.dwExtraInfoLength);
 
     port = components.nPort;
     https = components.nScheme == INTERNET_SCHEME_HTTPS;
@@ -88,17 +131,27 @@ bool HttpClient::parseUrl(
     return true;
 }
 
-std::string HttpClient::sendRequest(
+HttpResponse HttpClient::sendRequest(
     const std::wstring& method,
     const std::wstring& url,
     const std::string& body
 )
 {
-    std::string response;
+    HttpResponse response;
     std::wstring host;
     std::wstring path;
-    INTERNET_PORT port;
-    bool https;
+    INTERNET_PORT port = 0;
+    bool https = false;
+
+    if (!session)
+    {
+        return { 0, "unable to create WinHTTP session" };
+    }
+
+    if (body.size() > (std::numeric_limits<DWORD>::max)())
+    {
+        return { 0, "request body is too large" };
+    }
 
     if (!parseUrl(
         url,
@@ -108,7 +161,7 @@ std::string HttpClient::sendRequest(
         https
     ))
     {
-        return "invalid url";
+        return { 0, "invalid url" };
     }
 
     HINTERNET connection =
@@ -118,6 +171,11 @@ std::string HttpClient::sendRequest(
             port,
             0
         );
+
+    if (!connection)
+    {
+        return { 0, "WinHttpConnect failed: " + std::to_string(GetLastError()) };
+    }
 
     HINTERNET request = WinHttpOpenRequest(
             connection,
@@ -133,30 +191,33 @@ std::string HttpClient::sendRequest(
 
     if (!request)
     {
+        DWORD error = GetLastError();
         WinHttpCloseHandle(connection);
-        return "request failed";
+        return { 0, "WinHttpOpenRequest failed: " + std::to_string(error) };
     }
 
-    LPCWSTR headers = L"Content-Type: application/json\r\n";
+    std::wstring requestHeaders = buildHeaders();
+    DWORD bodySize = static_cast<DWORD>(body.size());
 
     BOOL sendSuccess = WinHttpSendRequest(
         request,
-        headers,
+        requestHeaders.c_str(),
         -1L,
         body.empty()
         ? WINHTTP_NO_REQUEST_DATA
         : (LPVOID)body.data(),
-        body.size(),
-        body.size(),
+        bodySize,
+        bodySize,
         0
     );
 
     if (!sendSuccess)
     {
+        DWORD error = GetLastError();
         WinHttpCloseHandle(request);
         WinHttpCloseHandle(connection);
 
-        return "send failed";
+        return { 0, "WinHttpSendRequest failed: " + std::to_string(error) };
     }
 
     BOOL receiveSuccess =
@@ -167,14 +228,14 @@ std::string HttpClient::sendRequest(
 
     if (!receiveSuccess)
     {
+        DWORD error = GetLastError();
         WinHttpCloseHandle(request);
         WinHttpCloseHandle(connection);
 
-        return "receive failed";
+        return { 0, "WinHttpReceiveResponse failed: " + std::to_string(error) };
     }
 
-    // 获取状态码
-
+    //
     DWORD statusCode = 0;
     DWORD statusSize =sizeof(statusCode);
 
@@ -188,12 +249,14 @@ std::string HttpClient::sendRequest(
         WINHTTP_NO_HEADER_INDEX
     );
 
+    response.statusCode =static_cast<int>(statusCode);
+
     std::cout
         << "HTTP Status: "
         << statusCode
         << std::endl;
-    // 读取数据
 
+    // 
     DWORD size = 0;
 
     while (
@@ -209,13 +272,11 @@ std::string HttpClient::sendRequest(
                 sizeof(buffer),
                 &readSize
             );
-
         if (!readSuccess)
         {
             break;
         }
-
-        response.append(
+        response.body.append(
             buffer,
             readSize
         );

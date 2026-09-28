@@ -71,6 +71,14 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -128,13 +136,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AIClient.cpp" />
+    <ClCompile Include="ApiException.cpp" />
+    <ClCompile Include="Config.cpp" />
     <ClCompile Include="cppAI.cpp" />
     <ClCompile Include="HttpClient.cpp" />
+    <ClCompile Include="JsonParser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AIClient.h" />
+    <ClInclude Include="ApiException.h" />
+    <ClInclude Include="Config.h" />
     <ClInclude Include="HttpClient.h" />
+    <ClInclude Include="HttpResponse.h" />
     <ClInclude Include="json.hpp" />
+    <ClInclude Include="Jsonparser.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
+    <None Include="config.example.json" />
+    <None Include="config.json" />
+  </ItemGroup>
+  <Target Name="CopyRuntimeConfig" AfterTargets="Build" Condition="Exists('config.json')">
+    <Copy SourceFiles="config.json" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

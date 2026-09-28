@@ -21,6 +21,18 @@
     <ClCompile Include="HttpClient.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="JsonParser.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="AIClient.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Config.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiException.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="json.hpp">
@@ -29,5 +41,25 @@
     <ClInclude Include="HttpClient.h">
       <Filter>源文件</Filter>
     </ClInclude>
+    <ClInclude Include="Jsonparser.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="HttpResponse.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AIClient.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Config.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiException.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="config.json" />
+    <None Include=".gitignore" />
+    <None Include="config.example.json" />
   </ItemGroup>
 </Project>
